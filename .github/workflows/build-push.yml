@@ -10,6 +10,7 @@ on:
 # Variables available to all jobs
 env:
   DOCKER_REGISTRY: ${{ vars.DOCKERHUB_REPO }}
+  GITHUB_CONTAINER_REGISTRY: ghcr.io/${{ github.repository_owner }}
   RUN_NUMBER: ${{ github.run_number }}
   RUN_NUMBER_OFFSET: ${{ vars.RUN_NUMBER_OFFSET }}
 
@@ -48,6 +49,15 @@ jobs:
           username: ${{ secrets.DOCKER_USER }}
           password: ${{ secrets.DOCKER_TOKEN }}
 
+      # Authenticate GHCR to allow pushing to our alternate image registry
+      - name: Login to Github Container Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+
       # Checkout our Github repo
       - name: Checkout Github Repo
         uses: actions/checkout@v3
@@ -80,10 +90,11 @@ jobs:
       # Push Docker Images to Dockerhub
       - name: Push Image to Dockerhub
         run: |
-          docker push ${DOCKER_REGISTRY}/${FDO_DOCKER_IMAGE}:${VERSION}
           if [[ $GITHUB_REF == 'refs/heads/main' ]]; then \
           docker tag ${DOCKER_REGISTRY}/${FDO_DOCKER_IMAGE}:${VERSION} ${DOCKER_REGISTRY}/${FDO_DOCKER_IMAGE}:testing && \
           docker push ${DOCKER_REGISTRY}/${FDO_DOCKER_IMAGE}:testing; \
+          docker tag ${DOCKER_REGISTRY}/${FDO_DOCKER_IMAGE}:${VERSION} ${GITHUB_CONTAINER_REGISTRY}/${FDO_DOCKER_IMAGE}:testing && \
+          docker push ${GITHUB_CONTAINER_REGISTRY}/${FDO_DOCKER_IMAGE}:testing; \
           fi
         env:
           VERSION: '${{ steps.config-version.outputs.VERSION }}-${{ steps.offset.outputs.BUILD_NUMBER }}'
